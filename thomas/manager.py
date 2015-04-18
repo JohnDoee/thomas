@@ -53,20 +53,20 @@ class Manager(object):
             
             progress_lines += value
         
-        print 'Piece status:'
+        print('Piece status:')
         pieces_per_line = 80
         for i in range((len(progress_lines) // pieces_per_line) + 1):
-            print '  %s' % progress_lines[pieces_per_line*i:pieces_per_line*(i+1)]
+            print('  %s' % progress_lines[pieces_per_line*i:pieces_per_line*(i+1)])
         
         current_speed = humanize_bytes(sum(self.last_speeds) / len(self.last_speeds))
         data_downloaded = humanize_bytes(self.input_handler.bytes_downloaded)
         total_size = humanize_bytes(self.pieces.size)
         download_percent = int((self.input_handler.bytes_downloaded / self.pieces.size) * 10000) / 100
         finished_data = humanize_bytes(finished_data)
-        print ''
-        print 'Current speed: %s/s - Current progress %s/%s (%s%%) - Currently finished from beginning %s' % (current_speed, data_downloaded,
+        print('')
+        print('Current speed: %s/s - Current progress %s/%s (%s%%) - Currently finished from beginning %s' % (current_speed, data_downloaded,
                                                                                                               total_size, download_percent,
-                                                                                                              finished_data)
+                                                                                                              finished_data))
     
     def start(self):
         logger.info('Starting to download from %r to %r' % (self.input_handler, self.output_handler))
@@ -109,8 +109,8 @@ class Manager(object):
                 avg_speed = humanize_bytes(self.pieces.size / total_time)
                 total_size = humanize_bytes(total_size)
                 
-                print ''
-                print 'Finished downloading %s in %s seconds (%s/s)' % (total_size, total_time, avg_speed)
+                print('')
+                print('Finished downloading %s in %s seconds (%s/s)' % (total_size, total_time, avg_speed))
                 
                 return
             

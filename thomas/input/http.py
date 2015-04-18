@@ -50,7 +50,7 @@ class HTTPInput(BaseInput):
                 
                 if first and is_multipart:
                     try:
-                        end_of = buffer.index('\r\n\r\n')
+                        end_of = buffer.index(b'\r\n\r\n')
                     except ValueError:
                         logger.warning('End of header was not in the first part of the chunk, trying to read more data')
                         continue
