@@ -54,7 +54,7 @@ class Manager(object):
             progress_lines += value
         
         print('Piece status:')
-        pieces_per_line = 80
+        pieces_per_line = 76
         for i in range((len(progress_lines) // pieces_per_line) + 1):
             print('  %s' % progress_lines[pieces_per_line*i:pieces_per_line*(i+1)])
         
@@ -64,9 +64,10 @@ class Manager(object):
         download_percent = int((self.input_handler.bytes_downloaded / self.pieces.size) * 10000) / 100
         finished_data = humanize_bytes(finished_data)
         print('')
-        print('Current speed: %s/s - Current progress %s/%s (%s%%) - Currently finished from beginning %s' % (current_speed, data_downloaded,
-                                                                                                              total_size, download_percent,
-                                                                                                              finished_data))
+        print('Current speed: %s/s / progress %s/%s (%s%%) - finished from start %s' % (current_speed, data_downloaded,
+                                                                                        total_size, download_percent,
+                                                                                        finished_data))
+        print('')
     
     def start(self):
         logger.info('Starting to download from %r to %r' % (self.input_handler, self.output_handler))
@@ -88,7 +89,7 @@ class Manager(object):
         
         while True:
             logger.debug('Checking downloaders.')
-            for i, pdt in pdts.items():
+            for i, pdt in list(pdts.items()):
                 if pdt.is_alive():
                     continue
                 
@@ -117,12 +118,13 @@ class Manager(object):
             logger.debug('Sleeping for some time and checking again')
             
             current_check = time.time()
-            current_speed = (self.input_handler.bytes_downloaded-bytes_downloaded) / (current_check-last_check)
-            self.last_speeds.append(current_speed)
-            
-            bytes_downloaded = self.input_handler.bytes_downloaded
-            last_check = current_check
-            self.print_status()
+            if current_check != last_check:
+                current_speed = (self.input_handler.bytes_downloaded-bytes_downloaded) / (current_check-last_check)
+                self.last_speeds.append(current_speed)
+                
+                bytes_downloaded = self.input_handler.bytes_downloaded
+                last_check = current_check
+                self.print_status()
             
             time.sleep(2)
         
