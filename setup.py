@@ -13,15 +13,15 @@ def read_description():
 
 setup(
     name='thomas',
-    version='1.0.0',
+    version='1.1.0',
     description='Thomas allows parallel http downloads and is an alternative to Axel',
     long_description=read_description(),
     author='Anders Jensen',
     author_email='johndoee+thomas@tidalstream.org',
     maintainer='John Doee',
     url='https://github.com/JohnDoee/thomas',
-    packages=['thomas', 'thomas.input', 'thomas.output'],
-    install_requires=['six', 'requests', 'rfc6266'],
+    packages=['thomas', 'thomas.inputs', 'thomas.outputs'],
+    install_requires=['six', 'requests', 'rfc6266', 'progressbar2'],
     license='MIT',
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -32,13 +32,17 @@ setup(
         'Operating System :: POSIX :: Linux',
         'Operating System :: POSIX :: Other',
         'Operating System :: Microsoft :: Windows',
-        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
         'Topic :: Internet :: WWW/HTTP',
     ],
+    extras_require={
+        'serve': ['twisted'],
+    },
     entry_points={ 'console_scripts': [
-        'thomas = thomas.cmd:commandline_handler',
+        'thomas = thomas',
     ]},
 )

@@ -1,7 +1,10 @@
 Thomas
 ======
 
-Thomas is a parallel HTTP downloading client intended to work as an alternativ to Axel.
+Thomas amplifies download speed by using parallel downloads similar to Axel or another
+download manager that uses segmented downloads.
+Thomas splits up the file like bittorrent instead of equal parts, this optimizes for reading while
+downloading instead of easy development.
 
 Requirements
 ------------
@@ -10,6 +13,12 @@ Requirements
 
 Install
 -------
+
+From pypi (stable):
+::
+
+    pip install thomas
+
 
 From GitHub (develop):
 ::
@@ -33,9 +42,14 @@ Start by installing.
 
 Then get downloading
 ::
-    thomas-env/bin/thomas http://rbx.proof.ovh.net/files/100Mio.dat
+    thomas http://rbx.proof.ovh.net/files/100Mio.dat
 
-See more commands by looking at ``thomas-env/bin/thomas -h``
+Or use it as an http "proxy"
+::
+    thomas --serve http
+    wget http://127.0.0.1:8080/?url=http://rbx.proof.ovh.net/files/100Mio.dat
+
+See more commands by looking at ``thomas -h``
 
 License
 -------
