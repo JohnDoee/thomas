@@ -1,31 +1,62 @@
+import base64
 import logging
 
-from six.moves.urllib.parse import urlsplit
+from datetime import datetime, timedelta
 
-from twisted.internet import defer, reactor
-from twisted.python import log
+from twisted.python.compat import intToBytes, networkString
+from twisted.internet import defer, task
+from twisted.python import log, randbytes
 from twisted.web import http, resource, server, static
 
-from ..plugin import OutputBase, InputBase
+from ..httpserver import ROOT_RESOURCE
+from ..plugin import OutputBase
 
 logger = logging.getLogger(__name__)
+
+URL_LIFETIME = timedelta(days=1)
+MIMETYPES = static.loadMimeTypes()
 
 
 class HttpOutput(OutputBase):
     plugin_name = 'http'
 
-    def __init__(self, host='127.0.0.1', port=8080, plugin_configs=None):
-        self.host = host
-        self.port = port
-        self.plugin_configs = plugin_configs or {}
+    def __init__(self, url_prefix='http'):
+        self.filelist = {}
+        self.url_prefix = url_prefix.strip('/')
 
     def start(self):
-        site = server.Site(FileServeResource())
-        reactor.listenTCP(self.port, site, interface=self.host)
-        reactor.run()
+        self.cleanup_old_urls_loop = task.LoopingCall(self.cleanup_old_urls)
+        self.cleanup_old_urls_loop.start(30 * 60)
+
+        self.resource = FileServeResource()
+        self.resource.filelist = self.filelist
+        ROOT_RESOURCE.putChild(self.url_prefix.split('/')[-1], self.resource)
 
     def stop(self):
-        reactor.stop()
+        self.cleanup_old_urls_loop.stop()
+        del ROOT_RESOURCE.children[self.url_prefix.split('/')[-1]]
+
+    def serve_item(self, item):
+        token = self.generate_secure_token()
+        self.filelist[token] = {
+            'expiration': datetime.now() + URL_LIFETIME,
+            'item': item,
+            'content_type': static.getTypeAndEncoding(item.id, MIMETYPES, {}, 'application/octet-stream')[0],
+        }
+
+        return '/%s/%s/%s' % (self.url_prefix, token.decode('ascii'), item.id, )
+
+    def generate_secure_token(self):
+        return base64.urlsafe_b64encode(randbytes.RandomFactory().secureRandom(21, True))
+
+    def cleanup_old_urls(self):
+        to_delete = []
+        for token, value in self.filelist.items():
+            if value['expiration'] < datetime.now():
+                to_delete.append(token)
+
+        for token in to_delete:
+            del self.filelist[token]
 
 
 class NoRangeStaticProducer(static.NoRangeStaticProducer):
@@ -112,13 +143,13 @@ class FilelikeObjectResource(static.File):
             size = self.getFileSize()
 
         if size:
-            request.setHeader('content-length', str(size))
+            request.setHeader(b'content-length', intToBytes(size))
         if self.contentType:
-            request.setHeader('content-type', self.contentType)
+            request.setHeader(b'content-type', networkString(self.contentType))
         if self.encoding:
-            request.setHeader('content-encoding', self.encoding)
+            request.setHeader(b'content-encoding', networkString(self.encoding))
         if self.filename:
-            request.setHeader('content-disposition', 'attachment; filename="%s"' % (self.filename.replace('"', ''), ))
+            request.setHeader(b'content-disposition', networkString('attachment; filename="%s"' % (self.filename.replace('"', ''), )))
 
     def makeProducer(self, request, fileForReading):
         """
@@ -131,7 +162,7 @@ class FilelikeObjectResource(static.File):
         @return: A L{StaticProducer}.  Calling C{.start()} on this will begin
             producing the response.
         """
-        byteRange = request.getHeader('range')
+        byteRange = request.getHeader(b'range')
         if byteRange is None or not self.getFileSize():
             self._setContentHeaders(request)
             request.setResponseCode(http.OK)
@@ -163,12 +194,12 @@ class FilelikeObjectResource(static.File):
         Begin sending the contents of this L{File} (or a subset of the
         contents, based on the 'range' header) to the given request.
         """
-        request.setHeader('accept-ranges', 'bytes')
+        request.setHeader(b'accept-ranges', b'bytes')
 
         producer = self.makeProducer(request, self.fileObject)
 
-        if request.method == 'HEAD':
-            return ''
+        if request.method == b'HEAD':
+            return b''
 
         producer.start()
         # and make sure the connection doesn't get closed
@@ -178,18 +209,9 @@ class FilelikeObjectResource(static.File):
 
 class FileServeResource(resource.Resource):
     def getChild(self, path, request):
-        url = request.args.get('url')
-        if not url:
-            return resource.NoResource()
+        if path in self.filelist:
+            item = self.filelist[path]['item']
+            content_type = self.filelist[path]['content_type']
+            return FilelikeObjectResource(item.open(), item['size'], contentType=content_type, filename=item.id)
 
-        url = url[0]
-        parsed_url = urlsplit(url)
-        plugin_cls = InputBase.find_plugin(parsed_url.scheme)
-
-        if not plugin_cls:
-            return resource.NoResource()
-
-        plugin = plugin_cls(url)
-        logger.info('Got a request for %s with range %r' % (url, request.requestHeaders.getRawHeaders('range')))
-
-        return FilelikeObjectResource(plugin, plugin.size, contentType=plugin.content_type, filename=plugin.filename)
+        return resource.NoResource()

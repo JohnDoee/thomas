@@ -1,7 +1,6 @@
 from __future__ import division
 
 import logging
-import time
 
 try:
     import Queue as queue
@@ -91,14 +90,12 @@ class HttpInput(InputBase):
 
         if self.pieces:
             self.current_piece = self.pieces.pop(0)
-            while not self.current_piece.is_complete.wait(1):
-                logger.debug('Waiting for %r to finish' % (self.current_piece, ))
 
     def read(self, *args, **kwargs):
         try:
             return self._read(*args, **kwargs)
         except:
-            print('Exception while reading')
+            logger.exception('Exception while reading')
 
     def _read(self, num_bytes=1024*8):
         if self.pieces is None:
@@ -107,10 +104,10 @@ class HttpInput(InputBase):
         if self.finished:
             return b''
 
-        d = self.current_piece.data.read(num_bytes)
+        d = self.current_piece.read(num_bytes)
         if not d:
             self.set_current_piece()
-            d = self.current_piece.data.read(num_bytes)
+            d = self.current_piece.read(num_bytes)
 
             if not d:
                 self.finished = True
@@ -176,7 +173,7 @@ class Downloader(object):
 
                     bytes_to_write = buffer[:bytes_left]
                     buffer = buffer[bytes_left:]
-                    piece.data.write(bytes_to_write)
+                    piece.write(bytes_to_write)
                     bytes_left -= len(bytes_to_write)
 
                     if bytes_left <= 0:

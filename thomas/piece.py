@@ -2,9 +2,9 @@ from __future__ import division
 
 import logging
 
-from io import BytesIO
+from io import BytesIO, SEEK_END
 from math import ceil
-from threading import Event
+from threading import Event, Lock
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +73,9 @@ class Piece(object):
         self.can_download = Event()
         self.is_complete = Event()
         self.last_piece = False
+        self.data_lock = Lock()
 
     def set_complete(self):
-        self.data.seek(0)
         self.is_complete.set()
 
     @property
@@ -87,3 +87,23 @@ class Piece(object):
 
     def __repr__(self):
         return 'Piece(%i, %i, %i)' % (self.piece_index, self.start_byte, self.end_byte)
+
+    def write(self, data):
+        with self.data_lock:
+            current_pos = self.data.tell()
+            self.data.seek(0, SEEK_END)
+            self.data.write(data)
+            self.data.seek(current_pos)
+
+    def read(self, num_bytes):
+        if not self.is_complete.is_set():
+            while True:
+                with self.data_lock:
+                    d = self.data.read(num_bytes)
+
+                if d or self.is_complete.is_set():
+                    return d
+
+                self.is_complete.wait(0.1)
+        else:
+            return self.data.read(num_bytes)
