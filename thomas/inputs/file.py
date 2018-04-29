@@ -30,7 +30,7 @@ class FileInput(InputBase):
 
         self._open_file.seek(pos, whence)
 
-    def read(self, num_bytes=1024*8):
+    def read(self, num_bytes=1024 * 8):
         if not self._open_file:
             self.seek(0)
 

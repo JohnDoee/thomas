@@ -184,14 +184,14 @@ class Item(dict):
         if not self.is_expanded:
             return
 
-        if not path:
-            return self
-
         if not isinstance(path, list):
             path = path.split('/')
 
         if self.id:
             path = path[1:]
+
+        if not path:
+            return self
 
         nested_item = [x for x in self.nested_items if x.id == path[0]]
         if not nested_item:
@@ -246,6 +246,28 @@ class Item(dict):
         })
 
         self.deduplicate_routes()
+
+    def remove_routes(self, handler=None, can_open=False, can_list=False, can_stream=False):
+        if not self.routes:
+            return
+
+        new_routes = []
+        for route in self.routes:
+            if handler and route['handler'] == handler:
+                continue
+
+            if can_open and route['can_open']:
+                continue
+
+            if can_list and route['can_list']:
+                continue
+
+            if can_stream and route['can_stream']:
+                continue
+
+            new_routes.append(route)
+
+        self.routes = new_routes
 
     def deduplicate_routes(self):
         if not self.routes or len(self.routes) == 1:

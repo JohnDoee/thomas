@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 def read_description():
     import os
@@ -20,18 +20,14 @@ setup(
     author_email='johndoee+thomas@tidalstream.org',
     maintainer='Anders Jensen',
     url='https://github.com/JohnDoee/thomas',
-    packages=[
-        'thomas',
-        'thomas.inputs',
-        'thomas.outputs',
-        'thomas.streamers',
-        'thomas.processors',
-    ],
+    packages=find_packages(),
     install_requires=[
         'six',
-        'requests',
-        'rfc6266',
+        'twisted',
         'progressbar2',
+        'rfc6266',
+        'requests',
+        'rarfile',
     ],
     license='MIT',
     classifiers=[
@@ -49,9 +45,6 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Topic :: Internet :: WWW/HTTP',
     ],
-    extras_require={
-        'serve': ['twisted'],
-    },
     entry_points={ 'console_scripts': [
         'thomas = thomas.__main__:main',
     ]},

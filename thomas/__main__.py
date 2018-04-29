@@ -75,7 +75,9 @@ def main():
             sys.stderr.write('Unknown scheme %s\n' % (parsed_url.scheme, ))
             quit(1)
 
-        plugin = plugin_cls(args.url, **plugin_configs.get('input.%s' % plugin_cls.plugin_name, {}))
+        # TODO: Fix up to work with new stuff and not just a fast http downloader
+        # Also fix Item instead of None
+        plugin = plugin_cls(None, args.url, **plugin_configs.get('input.%s' % plugin_cls.plugin_name, {}))
         file_modes = 'wb'
         current_byte = 0
         if os.path.isfile(plugin.filename):

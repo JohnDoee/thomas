@@ -3,30 +3,105 @@ import mimetypes
 
 import rarfile
 
+from ..filesystem import Item
 from ..plugin import ProcessorBase
 
 logger = logging.getLogger(__name__)
+
+POTENTIAL_RAR_ENDARC_SIZE = 20
 
 
 class RarProcessor(ProcessorBase, dict):
     plugin_name = 'rar'
 
-    def __init__(self, filesystem, entry_item):
+    def __init__(self, filesystem, entry_item, lazy=False):
         self.filesystem = filesystem
         self.entry_item = entry_item
+        self.lazy = lazy
 
-        self.vrf = VirtualRarFile(entry_item.open(), filesystem=filesystem)
-        self.infofile = self.vrf.infolist()[0]
+        if lazy:
+            fd = entry_item.open()
+            ver = _get_rar_version(fd)
 
-        self['size'] = self.size = self.infofile.file_size
-        self.filename = self.infofile.filename.split('/')[-1]
+            if ver == 5:
+                f.read(1)
+                parser = VirtualRAR5Parser(filesystem, None, None, None, None, None, None)
+                parser._main = parser._parse_header(fd)
+                has_recovery = bool(parser._main.flags & rarfile.RAR5_MAIN_FLAG_RECOVERY)
+            elif ver == 3:
+                parser = VirtualRAR3Parser(filesystem, None, None, None, None, None, None, None)
+                parser._main = parser._parse_header(fd)
+                has_recovery = bool(parser._main.flags & rarfile.RAR_MAIN_RECOVERY)
+            else:
+                raise IOError('Not a valid RAR file header sig')
+
+            # TODO: verify rar5 stuff
+
+            filemap = [parser._get_item_from_filename(entry_item.id)]
+            filename = entry_item.id
+            while True:
+                item = parser._next_volname_to_item(filename)
+                if not item:
+                    break
+                filename = item.id
+                filemap.append(item)
+
+            infofile = parser._parse_header(fd)
+        else:
+            self.vrf = VirtualRarFile(entry_item.open(), filesystem=filesystem)
+            self.infofile = infofile = self.vrf.infolist()[0]
+
+        self['size'] = self.size = infofile.file_size
+        self.filename = infofile.filename.split('/')[-1]
         self.content_type = mimetypes.guess_type(self.filename)[0] or 'bytes'
 
+        if lazy:
+            header_offset = fd.tell()
+            tail_offset = infofile.compress_size + header_offset
+
+            total_size = 0
+            file_elements = []
+            size = tail_offset - header_offset
+            for item in filemap[:-1]:
+                total_size += size
+                file_elements.append({
+                    'read_size': size,
+                    'seek': header_offset,
+                    'item': item,
+                })
+
+            item = filemap[-1]
+            size = infofile.file_size - total_size
+            file_elements.append({
+                'read_size': size,
+                'seek': header_offset,
+                'item': item,
+            })
+
+            if has_recovery:
+                first_recovery_record_percentage = (float(entry_item['size'] - tail_offset) / float(entry_item['size'] - POTENTIAL_RAR_ENDARC_SIZE - header_offset))
+                recovery_record_size = item['size'] - size - POTENTIAL_RAR_ENDARC_SIZE
+                recovery_record_percentage = float(recovery_record_size) / float(item['size'] - POTENTIAL_RAR_ENDARC_SIZE - header_offset)
+                diff = ((abs(first_recovery_record_percentage - recovery_record_percentage) /
+                       (first_recovery_record_percentage + recovery_record_percentage)) / 2) * 100
+                if diff > 10 and abs(first_recovery_record_percentage - recovery_record_percentage) > 10000:
+                    raise IOError('Recovery record alignment failed')
+            else:
+                if total_size != infofile.file_size + (header_offset + tail_offset) * len(filemap):
+                    raise IOError('RARFile archives not aligned proper for lazy reading')
+
+            virtualfile_processor_cls = ProcessorBase.find_plugin('virtualfile')
+            virtualfile_item = Item(id=self.filename)
+            self.virtualfile = virtualfile_processor_cls(virtualfile_item, file_elements)
+
     def open(self):
-        return RarProcessorFile(self.vrf, self.infofile)
+        if self.lazy:
+            return self.virtualfile.open()
+        else:
+            return RarProcessorFile(self.vrf, self.infofile)
 
 
-class RarProcessorFile:
+class RarProcessorFile(object):
     def __init__(self, vrf, infofile):
         self.vrf = vrf
         self.infofile = infofile

@@ -29,7 +29,7 @@ class HttpInput(InputBase):
     initial_pieces = None
     finished = False
 
-    def __init__(self, url, buffer_size=3, segments=6, piece_group_size=100, piece_config=None):
+    def __init__(self, item, url, buffer_size=3, segments=6, piece_group_size=100, piece_config=None):
         self.url = urlsplit(url)
         self.size, self.filename, self.content_type = self.get_info()
         self.buffer_size = buffer_size * segments

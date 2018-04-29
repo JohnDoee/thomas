@@ -106,7 +106,7 @@ class ProcessorBase(InputBase):
     protocols = None
 
     @abstractmethod
-    def __init__(self, filesystem, entry_point, **kwargs):
+    def __init__(self, **kwargs):
         pass
 
     @staticmethod

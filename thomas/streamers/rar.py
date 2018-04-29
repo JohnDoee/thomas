@@ -8,6 +8,10 @@ from ..plugin import StreamerBase, ProcessorBase
 class RarStreamer(StreamerBase):
     plugin_name = 'rar'
 
+    def __init__(self, item, lazy=False):
+        self.item = item
+        self.lazy = lazy
+
     def _find_all_first_files(self, item):
         """
         Does not support the full range of ways rar can split
@@ -67,4 +71,4 @@ class RarStreamer(StreamerBase):
     def stream(self):
         best_fileset_size, best_fileset = self._find_biggest_fileset(self.item)
         rar_processor_cls = ProcessorBase.find_plugin('rar')
-        return rar_processor_cls(self.item, best_fileset[0])
+        return rar_processor_cls(self.item, best_fileset[0], lazy=self.lazy)
