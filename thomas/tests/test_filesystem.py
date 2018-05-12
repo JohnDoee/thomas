@@ -349,8 +349,9 @@ class TestFilesystem(unittest.TestCase):
         item = Item('item1')
         folder.add_item(item)
 
-        def list_decorator(f, item, **kwargs):
+        def list_decorator(f, item, _route_name, **kwargs):
             item['list_decorator_called'] = True
+            self.assertEqual(_route_name, 'dummy_list')
             return f(item, **kwargs)
 
         self.router.list_decorator = list_decorator

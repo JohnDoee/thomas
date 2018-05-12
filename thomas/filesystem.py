@@ -74,6 +74,7 @@ class Router(object):
                 q.put(f(*args, **kwargs))
 
             if self.list_decorator:
+                kwargs_copy['_route_name'] = route['handler']
                 thread = Thread(target=list_thread, args=(thread_queue, self.list_decorator, handler['handler'], item_copy, ), kwargs=kwargs_copy)
             else:
                 thread = Thread(target=list_thread, args=(thread_queue, handler['handler'], item_copy, ), kwargs=kwargs_copy)

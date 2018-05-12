@@ -13,7 +13,7 @@ def read_description():
 
 setup(
     name='thomas',
-    version='2.1.0',
+    version='2.2.0',
     description='Thomas allows segmented downloads and is an alternative to Axel',
     long_description=read_description(),
     author='Anders Jensen',
@@ -22,6 +22,7 @@ setup(
     url='https://github.com/JohnDoee/thomas',
     packages=find_packages(),
     install_requires=[
+        'pytz',
         'six',
         'twisted',
         'progressbar2',
