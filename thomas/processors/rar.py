@@ -100,8 +100,14 @@ class RarProcessor(ProcessorBase, dict):
         else:
             return RarProcessorFile(self.vrf, self.infofile)
 
+    @property
+    def id(self):
+        return self.infofile.filename
+
 
 class RarProcessorFile(object):
+    _open_file = None
+
     def __init__(self, vrf, infofile):
         self.vrf = vrf
         self.infofile = infofile
