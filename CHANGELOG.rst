@@ -1,6 +1,13 @@
 Changelog
 =========
 
+Version Unreleased
+-----------------------------------------------------------
+
+* Fixed py2/3 compatibility issues
+* Improved File Serving resource to actually support defers
+* Fixed a few small bugs related to rar-file and virtual file
+
 Version 2.2.1 (14-05-2018)
 -----------------------------------------------------------
 

@@ -111,10 +111,11 @@ def main():
             while True:
                 d = plugin.read()
                 if not d:
-                    quit()
+                    break
                 f.write(d)
                 current_byte += len(d)
                 bar.update(current_byte)
+        bar.finish()
     else:
         parser.print_help()
 

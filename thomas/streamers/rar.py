@@ -60,7 +60,7 @@ class RarStreamer(StreamerBase):
 
         return best_fileset_size, best_fileset
 
-    def evaluate(self):
+    def evaluate(self, include_fileset=False):
         if not self.item.is_listable:
             return None
 
@@ -68,8 +68,12 @@ class RarStreamer(StreamerBase):
 
         # we would prefer the same file if it is extracted
         # so lets add a small factor to take overhead into
-        # consideration
-        return int(best_fileset_size * 0.99)
+        # considerations
+        evaluation = int(best_fileset_size * 0.95)
+        if include_fileset:
+            return evaluation, best_fileset
+        else:
+            return evaluation
 
     def stream(self):
         best_fileset_size, best_fileset = self._find_biggest_fileset(self.item)

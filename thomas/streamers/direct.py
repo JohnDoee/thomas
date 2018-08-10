@@ -26,9 +26,12 @@ class DirectStreamer(StreamerBase):
 
         return best_size, best_item
 
-    def evaluate(self):
+    def evaluate(self, include_fileset=False):
         best_size, best_item = self._find_best_item(self.item)
-        return best_size or None
+        if include_fileset:
+            return (best_size or None), [best_item]
+        else:
+            return best_size or None
 
     def stream(self):
         best_size, best_item = self._find_best_item(self.item)

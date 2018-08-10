@@ -18,6 +18,7 @@ class RarProcessor(ProcessorBase, dict):
         self.filesystem = filesystem
         self.entry_item = entry_item
         self.lazy = lazy
+        self._read_items = []
 
         if lazy:
             fd = entry_item.open()
@@ -46,7 +47,7 @@ class RarProcessor(ProcessorBase, dict):
                 filename = item.id
                 filemap.append(item)
 
-            infofile = parser._parse_header(fd)
+            self.infofile = infofile = parser._parse_header(fd)
         else:
             self.vrf = VirtualRarFile(entry_item.open(), filesystem=filesystem)
             self.infofile = infofile = self.vrf.infolist()[0]
@@ -58,6 +59,8 @@ class RarProcessor(ProcessorBase, dict):
         if lazy:
             header_offset = fd.tell()
             tail_offset = infofile.compress_size + header_offset
+            tail_size = entry_item['size'] - tail_offset
+            total_archive_size = sum(item['size'] for item in filemap)
 
             total_size = 0
             file_elements = []
@@ -69,6 +72,7 @@ class RarProcessor(ProcessorBase, dict):
                     'seek': header_offset,
                     'item': item,
                 })
+                self._read_items.append(item)
 
             item = filemap[-1]
             size = infofile.file_size - total_size
@@ -77,6 +81,7 @@ class RarProcessor(ProcessorBase, dict):
                 'seek': header_offset,
                 'item': item,
             })
+            self._read_items.append(item)
 
             if has_recovery:
                 first_recovery_record_percentage = (float(entry_item['size'] - tail_offset) / float(entry_item['size'] - POTENTIAL_RAR_ENDARC_SIZE - header_offset))
@@ -87,7 +92,7 @@ class RarProcessor(ProcessorBase, dict):
                 if diff > 10 and abs(first_recovery_record_percentage - recovery_record_percentage) > 10000:
                     raise IOError('Recovery record alignment failed')
             else:
-                if total_size != infofile.file_size + (header_offset + tail_offset) * len(filemap):
+                if total_archive_size != infofile.file_size + (header_offset + tail_size) * len(filemap):
                     raise IOError('RARFile archives not aligned proper for lazy reading')
 
             virtualfile_processor_cls = ProcessorBase.find_plugin('virtualfile')
@@ -103,6 +108,9 @@ class RarProcessor(ProcessorBase, dict):
     @property
     def id(self):
         return self.infofile.filename
+
+    def get_read_items(self):
+        return self._read_items
 
 
 class RarProcessorFile(object):
@@ -230,25 +238,25 @@ class VirtualRAR3Parser(VirtualCommonParser, rarfile.RAR3Parser):
     def __init__(self, filesystem, rarfile_xfile, *args, **kwargs):
         self._filesystem = filesystem
         self._rarfile_xfile = rarfile_xfile
-        super().__init__(*args, **kwargs)
+        super(VirtualRAR3Parser, self).__init__(*args, **kwargs)
 
 
 class VirtualRAR5Parser(VirtualCommonParser, rarfile.RAR5Parser):
     def __init__(self, filesystem, rarfile_xfile, *args, **kwargs):
         self._filesystem = filesystem
         self._rarfile_xfile = rarfile_xfile
-        super().__init__(*args, **kwargs)
+        super(VirtualRAR5Parser, self).__init__(*args, **kwargs)
 
 
 class VirtualRarFile(rarfile.RarFile):
     _rar3parser = VirtualRAR3Parser
     _rar5parser = VirtualRAR5Parser
 
-    def __init__(self, *args, filesystem=None, **kwargs):
+    def __init__(self, filesystem=None, *args, **kwargs):
         """Filesystem must be a folder containing rar files"""
         self._filesystem = filesystem
 
-        super().__init__(*args, **kwargs)
+        super(VirtualRarFile, self).__init__(*args, **kwargs)
 
     def _parse(self):
         rarfile_xfile = rarfile.XFile(self._rarfile)

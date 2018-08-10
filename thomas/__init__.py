@@ -2,6 +2,8 @@ from .filesystem import Item, Router, router
 
 from .plugin import InputBase, StreamerBase, OutputBase, ProcessorBase
 
+from .txiobuffer import TwistedIOBuffer
+
 for plugin in InputBase.get_all_plugins():
     router.register_handler(plugin.plugin_name, plugin, True, False, False)
 

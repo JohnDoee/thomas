@@ -1,5 +1,5 @@
 import logging
-import queue
+from six.moves import queue
 
 import pytz
 
@@ -98,7 +98,7 @@ class Router(object):
         # given stream preparators, they each find their best and turn the item into a streamable URL
         # these can be ...
         if not item.routes:
-            return []
+            return None
 
         # use evaluate to find the best one
         best_evaluation = -1
@@ -110,8 +110,9 @@ class Router(object):
                 continue
 
             logger.debug('Found streaming plugin with handler %s args %r, evaluating' % (route['handler'], route['kwargs']))
-            kwargs.update(route['kwargs'])
-            plugin = handler['handler'](item, **kwargs)
+            route_kwargs = dict(kwargs)
+            route_kwargs.update(route['kwargs'])
+            plugin = handler['handler'](item, **route_kwargs)
 
             evaluation = plugin.evaluate()
             logger.debug('Evaluated with %s to %s' % (route['handler'], evaluation))
@@ -300,6 +301,8 @@ class Item(dict):
                 self[key] = value
             elif isinstance(self[key], dict) and isinstance(value, dict):
                 self[key].update(value)
+            elif isinstance(self[key], list) and isinstance(value, list):
+                self[key] += value
 
         for key in key_skiplist:
             if key not in self and key not in item:
@@ -397,13 +400,16 @@ class Item(dict):
         return item
 
     def __repr__(self):
-        self_repr = super().__repr__()
+        self_repr = super(Item, self).__repr__()
         if len(self_repr) > 30:
             self_repr = self_repr[:30] + '...}'
 
         return 'Item(%r, attributes=%s)' % (self.id, self_repr)
 
     def __bool__(self):
+        return True
+
+    def __nonzero__(self):
         return True
 
     def __eq__(self, other):
