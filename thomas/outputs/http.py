@@ -276,7 +276,7 @@ class FilelikeObjectResource(static.File):
         if self.encoding:
             request.setHeader(b'content-encoding', networkString(self.encoding))
         if self.filename:
-            request.setHeader(b'content-disposition', build_header(self.filename))
+            request.setHeader(b'content-disposition', networkString(build_header(self.filename).encode('latin-1')))
 
     def makeProducer(self, request, fileForReading):
         """
