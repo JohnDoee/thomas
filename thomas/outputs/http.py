@@ -256,7 +256,7 @@ class FilelikeObjectResource(static.File):
     isLeaf = True
     contentType = None
     fileObject = None
-    encoding = 'bytes'
+    encoding = None
 
     def __init__(self, fileObject, size, contentType='bytes', filename=None):
         self.contentType = contentType
