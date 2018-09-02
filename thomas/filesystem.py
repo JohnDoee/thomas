@@ -183,6 +183,9 @@ class Item(dict):
         self.nested_items.append(item)
 
     def get_item_from_path(self, path):
+        if path == self.id:
+            return self
+
         if not self.is_expanded:
             return
 

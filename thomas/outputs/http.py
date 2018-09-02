@@ -96,7 +96,6 @@ class StaticProducer(object):
 
     def _stopProducing(self):
         if self.request:
-            logger.info('Cannot produce anymore')
             self.can_produce = False
             self.fileObject.close()
             self.request = None
@@ -133,7 +132,6 @@ class NoRangeStaticProducer(StaticProducer):
                 break
 
     def start(self):
-        logger.info('Start producer called on %r' % (id(self), ))
         self.request.registerProducer(self, True)
         self.resumeProducing()
 
@@ -146,7 +144,6 @@ class SingleRangeStaticProducer(StaticProducer):
 
     @defer.inlineCallbacks
     def start(self):
-        logger.info('Start producer called on %r' % (id(self), ))
         yield self.fileObject.seek(self.offset)
         self.bytesWritten = 0
         self.request.registerProducer(self, True)
@@ -191,7 +188,6 @@ class MultipleRangeStaticProducer(StaticProducer):
 
     @defer.inlineCallbacks
     def start(self):
-        logger.info('Start producer called on %r' % (id(self), ))
         self.rangeIter = iter(self.rangeInfo)
         yield self._nextRange()
         self.request.registerProducer(self, True)
@@ -297,7 +293,7 @@ class FilelikeObjectResource(static.File):
         try:
             parsedRanges = self._parseRangeHeader(byteRange)
         except ValueError:
-            log.msg("Ignoring malformed Range header %r" % (byteRange,))
+            logger.warning("Ignoring malformed Range header %r" % (byteRange,))
             self._setContentHeaders(request)
             request.setResponseCode(http.OK)
             return NoRangeStaticProducer(request, fileForReading)
