@@ -49,8 +49,8 @@ class RarProcessor(ProcessorBase, dict):
 
             self.infofile = infofile = parser._parse_header(fd)
         else:
-            self.vrf = VirtualRarFile(entry_item.open(), filesystem=filesystem)
-            self.infofile = infofile = self.vrf.infolist()[0]
+            vrf = VirtualRarFile(entry_item.open(), filesystem=filesystem)
+            self.infofile = infofile = vrf.infolist()[0]
 
         self['size'] = self.size = infofile.file_size
         self.filename = infofile.filename.split('/')[-1]
@@ -103,7 +103,8 @@ class RarProcessor(ProcessorBase, dict):
         if self.lazy:
             return self.virtualfile.open()
         else:
-            return RarProcessorFile(self.vrf, self.infofile)
+            vrf = VirtualRarFile(self.entry_item.open(), filesystem=self.filesystem)
+            return RarProcessorFile(vrf, vrf.infolist()[0])
 
     @property
     def id(self):
@@ -252,9 +253,9 @@ class VirtualRarFile(rarfile.RarFile):
     _rar3parser = VirtualRAR3Parser
     _rar5parser = VirtualRAR5Parser
 
-    def __init__(self, filesystem=None, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """Filesystem must be a folder containing rar files"""
-        self._filesystem = filesystem
+        self._filesystem = kwargs.pop('filesystem')
 
         super(VirtualRarFile, self).__init__(*args, **kwargs)
 
