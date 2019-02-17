@@ -13,7 +13,7 @@ def read_description():
 
 setup(
     name='thomas',
-    version='2.2.2',
+    version='2.2.3',
     description='Thomas allows segmented downloads and is an alternative to Axel',
     long_description=read_description(),
     author='Anders Jensen',

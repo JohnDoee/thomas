@@ -1,5 +1,5 @@
 """
-Opens and reads in a thread, fills a local buffer with data
+Opens and reads in a thread, fills a local buffer with data (TODO)
 to avoid too many / limit thread calls.
 
 This should avoid twisted blocking.
