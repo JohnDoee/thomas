@@ -1,6 +1,15 @@
 Changelog
 =========
 
+Version Unreleased
+-----------------------------------------------------------
+
+* Fixed py2/3 compatibility issues
+* Improved File Serving resource to actually support defers
+* Fixed a few small bugs related to rar-file and virtual file
+* Fixed bug related to no item returned by a list
+* Added support for serving files inline instead of attachment
+
 Version 2.2.1 (14-05-2018)
 -----------------------------------------------------------
 

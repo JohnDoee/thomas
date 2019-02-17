@@ -40,10 +40,6 @@ class InputBase(PluginBase):
     filename = None
     content_type = None
 
-    @abstractmethod
-    def __init__(self, url, **kwargs):
-        pass
-
     @abstractproperty
     def protocols(self):
         """List of supported protocols"""
@@ -73,6 +69,13 @@ class InputBase(PluginBase):
     @staticmethod
     def get_all_plugins():
         return InputBase.plugin_registry.values()
+
+    def get_read_items(self):
+        """
+        Returns a list of items used, if possible.
+        Must be in read order
+        """
+        return []
 
 
 class OutputBase(PluginBase):
@@ -137,10 +140,13 @@ class StreamerBase(PluginBase):
                 return plugin
 
     @abstractmethod
-    def evaluate(self):
+    def evaluate(self, include_fileset=False):
         """
         How good is this stream, it can be e.g. file-size
         when trying to stream the best video file.
+
+        If include_fileset, then nclude items in the
+        best evaluation when returning.
 
         The biggest value wins.
         """

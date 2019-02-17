@@ -13,6 +13,7 @@ class FileInput(InputBase):
     _open_file = None
 
     def __init__(self, item, path):
+        self.item = item
         self.path = path
         self.size, self.filename, self.content_type = self.get_info()
 
@@ -45,3 +46,6 @@ class FileInput(InputBase):
             logger.debug('Closing file')
             self._open_file.close()
         self._open_file = None
+
+    def get_read_items(self):
+        return [self.item]

@@ -3,13 +3,21 @@ import logging
 
 from datetime import datetime, timedelta
 
+from rfc6266 import build_header
+
+from six.moves import urllib
+
 from twisted.python.compat import intToBytes, networkString
-from twisted.internet import defer, task
+from twisted.internet import abstract, defer, task
+from twisted.internet.interfaces import IPushProducer
 from twisted.python import log, randbytes
 from twisted.web import http, resource, server, static
 
+from zope.interface import implementer
+
 from ..httpserver import ROOT_RESOURCE
 from ..plugin import OutputBase
+from ..txiobuffer import TwistedIOBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +44,16 @@ class HttpOutput(OutputBase):
         self.cleanup_old_urls_loop.stop()
         del ROOT_RESOURCE.children[self.url_prefix.split('/')[-1]]
 
-    def serve_item(self, item):
+    def serve_item(self, item, as_inline=False):
         token = self.generate_secure_token()
         self.filelist[token] = {
             'expiration': datetime.now() + URL_LIFETIME,
             'item': item,
+            'as_inline': as_inline,
             'content_type': static.getTypeAndEncoding(item.id, MIMETYPES, {}, 'application/octet-stream')[0],
         }
 
-        return '/%s/%s/%s' % (self.url_prefix, token.decode('ascii'), item.id, )
+        return '/%s/%s/%s' % (self.url_prefix, token.decode('ascii'), urllib.parse.quote_plus(item.id), )
 
     def generate_secure_token(self):
         return base64.urlsafe_b64encode(randbytes.RandomFactory().secureRandom(21, True))
@@ -59,77 +68,192 @@ class HttpOutput(OutputBase):
             del self.filelist[token]
 
 
-class NoRangeStaticProducer(static.NoRangeStaticProducer):
+@implementer(IPushProducer)
+class StaticProducer(object):
+    bufferSize = abstract.FileDescriptor.bufferSize
+    can_produce = False
+
+    def __init__(self, request, fileObject):
+        """
+        Initialize the instance.
+        """
+        self.request = request
+        self.fileObject = fileObject
+        self.ready = defer.Deferred()
+
+    def pauseProducing(self):
+        self.can_produce = False
+
     @defer.inlineCallbacks
     def resumeProducing(self):
-        if not self.request:
-            return
-        data = yield defer.maybeDeferred(self.fileObject.read, self.bufferSize)
-        if data:
-            # this .write will spin the reactor, calling .doWrite and then
-            # .resumeProducing again, so be prepared for a re-entrant call
-            self.request.write(data)
-        else:
-            self.request.unregisterProducer()
-            self.request.finish()
-            self.stopProducing()
+        raise NotImplementedError()
 
+    def stopProducing(self):
+        try:
+            self._stopProducing()
+        except:
+            logger.exception('Failed to stopProducing')
+            raise
 
-class SingleRangeStaticProducer(static.SingleRangeStaticProducer):
-    @defer.inlineCallbacks
-    def resumeProducing(self):
-        if not self.request:
-            return
-        data = yield defer.maybeDeferred(self.fileObject.read,
-            min(self.bufferSize, self.size - self.bytesWritten))
-        if data:
-            self.bytesWritten += len(data)
-            # this .write will spin the reactor, calling .doWrite and then
-            # .resumeProducing again, so be prepared for a re-entrant call
-            self.request.write(data)
-        if self.request and self.bytesWritten == self.size:
-            self.request.unregisterProducer()
-            self.request.finish()
-            self.stopProducing()
-
-
-class MultipleRangeStaticProducer(static.MultipleRangeStaticProducer):
-    @defer.inlineCallbacks
-    def resumeProducing(self):
-        if not self.request:
-            return
-        data = []
-        dataLength = 0
-        done = False
-        while dataLength < self.bufferSize:
-            if self.partBoundary:
-                dataLength += len(self.partBoundary)
-                data.append(self.partBoundary)
-                self.partBoundary = None
-            p = yield defer.maybeDeferred(self.fileObject.read,
-                min(self.bufferSize - dataLength,
-                    self._partSize - self._partBytesWritten))
-            self._partBytesWritten += len(p)
-            dataLength += len(p)
-            data.append(p)
-            if self.request and self._partBytesWritten == self._partSize:
-                try:
-                    self._nextRange()
-                except StopIteration:
-                    done = True
-                    break
-        self.request.write(''.join(data))
-        if done:
-            self.request.unregisterProducer()
-            self.request.finish()
+    def _stopProducing(self):
+        if self.request:
+            self.can_produce = False
+            self.fileObject.close()
             self.request = None
+
+
+class NoRangeStaticProducer(StaticProducer):
+    @defer.inlineCallbacks
+    def resumeProducing(self):
+        try:
+            yield self._resumeProducing()
+        except:
+            logger.exception('Failed NoRangeStaticProducer')
+            raise
+
+    @defer.inlineCallbacks
+    def _resumeProducing(self):
+        if self.can_produce:
+            logger.warning('Trying to double-produce')
+            defer.returnValue(None)
+
+        self.can_produce = True
+        while self.can_produce:
+            data = yield defer.maybeDeferred(self.fileObject.read, self.bufferSize)
+            if not self.request:
+                break
+            if data:
+                # this .write will spin the reactor, calling .doWrite and then
+                # .resumeProducing again, so be prepared for a re-entrant call
+                self.request.write(data)
+            else:
+                self.request.unregisterProducer()
+                self.request.finish()
+                self.stopProducing()
+                break
+
+    def start(self):
+        self.request.registerProducer(self, True)
+        self.resumeProducing()
+
+
+class SingleRangeStaticProducer(StaticProducer):
+    def __init__(self, request, fileObject, offset, size):
+        StaticProducer.__init__(self, request, fileObject)
+        self.offset = offset
+        self.size = size
+
+    @defer.inlineCallbacks
+    def start(self):
+        yield self.fileObject.seek(self.offset)
+        self.bytesWritten = 0
+        self.request.registerProducer(self, True)
+        self.resumeProducing()
+
+    @defer.inlineCallbacks
+    def resumeProducing(self):
+        try:
+            yield self._resumeProducing()
+        except:
+            logger.exception('Failed SingleRangeStaticProducer')
+            raise
+
+    @defer.inlineCallbacks
+    def _resumeProducing(self):
+        if self.can_produce:
+            logger.warning('Trying to double-produce')
+            defer.returnValue(None)
+
+        self.can_produce = True
+        while self.can_produce:
+            data = yield defer.maybeDeferred(self.fileObject.read,
+                min(self.bufferSize, self.size - self.bytesWritten))
+            if not self.request:
+                break
+            if data:
+                self.bytesWritten += len(data)
+                # this .write will spin the reactor, calling .doWrite and then
+                # .resumeProducing again, so be prepared for a re-entrant call
+                self.request.write(data)
+            if self.request and self.bytesWritten == self.size:
+                self.request.unregisterProducer()
+                self.request.finish()
+                self.stopProducing()
+                break
+
+
+class MultipleRangeStaticProducer(StaticProducer):
+    def __init__(self, request, fileObject, rangeInfo):
+        StaticProducer.__init__(self, request, fileObject)
+        self.rangeInfo = rangeInfo
+
+    @defer.inlineCallbacks
+    def start(self):
+        self.rangeIter = iter(self.rangeInfo)
+        yield self._nextRange()
+        self.request.registerProducer(self, True)
+        self.resumeProducing()
+
+    @defer.inlineCallbacks
+    def _nextRange(self):
+        self.partBoundary, partOffset, self._partSize = next(self.rangeIter)
+        self._partBytesWritten = 0
+        self.fileObject.seek(partOffset)
+
+    @defer.inlineCallbacks
+    def resumeProducing(self):
+        try:
+            yield self._resumeProducing()
+        except:
+            logger.exception('Failed MultipleRangeStaticProducer')
+            raise
+
+    @defer.inlineCallbacks
+    def _resumeProducing(self):
+        if self.can_produce:
+            logger.warning('Trying to double-produce')
+            defer.returnValue(None)
+
+        self.can_produce = True
+        while self.can_produce:
+            if not self.request:
+                break
+            data = []
+            dataLength = 0
+            done = False
+            while dataLength < self.bufferSize:
+                if self.partBoundary:
+                    dataLength += len(self.partBoundary)
+                    data.append(self.partBoundary)
+                    self.partBoundary = None
+                p = yield defer.maybeDeferred(self.fileObject.read,
+                    min(self.bufferSize - dataLength,
+                        self._partSize - self._partBytesWritten))
+                self._partBytesWritten += len(p)
+                dataLength += len(p)
+                data.append(p)
+                if not self.request:
+                    break
+                if self._partBytesWritten == self._partSize:
+                    try:
+                        yield self._nextRange()
+                    except StopIteration:
+                        done = True
+                        break
+            if self.request:
+                self.request.write(''.join(data))
+                if done:
+                    self.request.unregisterProducer()
+                    self.request.finish()
+                    self.request = None
+                    break
 
 
 class FilelikeObjectResource(static.File):
     isLeaf = True
     contentType = None
     fileObject = None
-    encoding = 'bytes'
+    encoding = None
 
     def __init__(self, fileObject, size, contentType='bytes', filename=None):
         self.contentType = contentType
@@ -149,7 +273,7 @@ class FilelikeObjectResource(static.File):
         if self.encoding:
             request.setHeader(b'content-encoding', networkString(self.encoding))
         if self.filename:
-            request.setHeader(b'content-disposition', networkString('attachment; filename="%s"' % (self.filename.replace('"', ''), )))
+            request.setHeader(b'content-disposition', build_header(self.filename).encode('latin-1'))
 
     def makeProducer(self, request, fileForReading):
         """
@@ -170,7 +294,7 @@ class FilelikeObjectResource(static.File):
         try:
             parsedRanges = self._parseRangeHeader(byteRange)
         except ValueError:
-            log.msg("Ignoring malformed Range header %r" % (byteRange,))
+            logger.warning("Ignoring malformed Range header %r" % (byteRange,))
             self._setContentHeaders(request)
             request.setResponseCode(http.OK)
             return NoRangeStaticProducer(request, fileForReading)
@@ -201,6 +325,10 @@ class FilelikeObjectResource(static.File):
         if request.method == b'HEAD':
             return b''
 
+        def done(ign):
+            producer.stopProducing()
+
+        request.notifyFinish().addCallbacks(done, done)
         producer.start()
         # and make sure the connection doesn't get closed
         return server.NOT_DONE_YET
@@ -208,10 +336,18 @@ class FilelikeObjectResource(static.File):
 
 
 class FileServeResource(resource.Resource):
+    filelist = None
+
     def getChild(self, path, request):
-        if path in self.filelist:
+        if self.filelist and path in self.filelist:
             item = self.filelist[path]['item']
             content_type = self.filelist[path]['content_type']
-            return FilelikeObjectResource(item.open(), item['size'], contentType=content_type, filename=item.id)
+
+            if self.filelist[path]['as_inline']:
+                filename = None
+            else:
+                filename = item.id or 'unknown'
+
+            return FilelikeObjectResource(TwistedIOBuffer(item.open()), item['size'], contentType=content_type, filename=filename)
 
         return resource.NoResource()
