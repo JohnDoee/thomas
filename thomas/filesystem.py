@@ -88,8 +88,10 @@ class Router(object):
 
         while not thread_queue.empty():
             item_copy = thread_queue.get_nowait()
-            if item_copy:
-                item.merge(item_copy)
+            if isinstance(item_copy, Item):
+                item_copy.id = item.id # otherwise merge will fail
+                if item_copy:
+                    item.merge(item_copy)
 
         return item
 
