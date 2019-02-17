@@ -44,11 +44,12 @@ class HttpOutput(OutputBase):
         self.cleanup_old_urls_loop.stop()
         del ROOT_RESOURCE.children[self.url_prefix.split('/')[-1]]
 
-    def serve_item(self, item):
+    def serve_item(self, item, as_inline=False):
         token = self.generate_secure_token()
         self.filelist[token] = {
             'expiration': datetime.now() + URL_LIFETIME,
             'item': item,
+            'as_inline': as_inline,
             'content_type': static.getTypeAndEncoding(item.id, MIMETYPES, {}, 'application/octet-stream')[0],
         }
 
@@ -335,10 +336,18 @@ class FilelikeObjectResource(static.File):
 
 
 class FileServeResource(resource.Resource):
+    filelist = None
+
     def getChild(self, path, request):
-        if path in self.filelist:
+        if self.filelist and path in self.filelist:
             item = self.filelist[path]['item']
             content_type = self.filelist[path]['content_type']
-            return FilelikeObjectResource(TwistedIOBuffer(item.open()), item['size'], contentType=content_type, filename=item.id)
+
+            if self.filelist[path]['as_inline']:
+                filename = None
+            else:
+                filename = item.id or 'unknown'
+
+            return FilelikeObjectResource(TwistedIOBuffer(item.open()), item['size'], contentType=content_type, filename=filename)
 
         return resource.NoResource()
