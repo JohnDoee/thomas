@@ -9,6 +9,7 @@ Version Unreleased
 * Fixed a few small bugs related to rar-file and virtual file
 * Fixed bug related to no item returned by a list
 * Added support for serving files inline instead of attachment
+* Added support for rclone
 
 Version 2.2.1 (14-05-2018)
 -----------------------------------------------------------
