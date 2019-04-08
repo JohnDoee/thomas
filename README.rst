@@ -6,6 +6,8 @@ Thomas is many things, among them:
 * A framework to build a streaming platform by inputting, processing and outputting files.
 * A segmented downloader that makes it possible to play file while downloading.
 
+Note: CLI is currently somewhat broken
+
 Install
 -------
 
