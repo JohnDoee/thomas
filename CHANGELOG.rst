@@ -10,6 +10,7 @@ Version Unreleased
 * Fixed bug related to no item returned by a list
 * Added support for serving files inline instead of attachment
 * Added support for rclone
+* Making sure files are closed when using lazy rar
 
 Version 2.2.1 (14-05-2018)
 -----------------------------------------------------------

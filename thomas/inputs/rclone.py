@@ -66,6 +66,7 @@ class RCloneInput(InputBase):
         if self._open_file:
             logger.debug('Closing file')
             self._open_file.terminate()
+            self._open_file.wait()
         self._open_file = None
 
     def get_read_items(self):

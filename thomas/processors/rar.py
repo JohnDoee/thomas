@@ -58,6 +58,7 @@ class RarProcessor(ProcessorBase, dict):
 
         if lazy:
             header_offset = fd.tell()
+            fd.close()
             tail_offset = infofile.compress_size + header_offset
             tail_size = entry_item['size'] - tail_offset
             total_archive_size = sum(item['size'] for item in filemap)

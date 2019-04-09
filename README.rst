@@ -21,7 +21,7 @@ From GitHub (develop):
 ::
 
     virtualenv thomas-env
-    thomas-env/bin/pip install git+https://github.com/JohnDoee/thomas.git#develop
+    thomas-env/bin/pip install git+https://github.com/JohnDoee/thomas.git
 
 
 Upgrade from previous version
@@ -30,7 +30,7 @@ Upgrade from previous version
 Upgrading from Github (develop)
 ::
 
-    thomas-env/bin/pip install git+https://github.com/JohnDoee/thomas.git#develop --upgrade --force-reinstall
+    thomas-env/bin/pip install git+https://github.com/JohnDoee/thomas.git --upgrade --force-reinstall
 
 Instructions
 ------------
